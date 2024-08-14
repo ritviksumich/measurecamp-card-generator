@@ -1,0 +1,315 @@
+<!--
+    MeasureCamp - Attendee Card Generator
+    Developed by: Ritvik Sharma
+    Email: ritviks@umich.edu
+    Description: This tool allows users to create and download personalized attendee cards for MeasureCamp.
+    GitHub Repository: https://github.com/ritviksumich/measurecamp-card-generator
+    License: MIT License
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeasureCamp Dubai 2024 Attendee Card Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .step {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .note {
+            font-size: 12px;
+            color: #999;
+        }
+        #imageControls, #previewContainer {
+            display: none;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        #download {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #download:disabled {
+            background-color: #ddd;
+            cursor: not-allowed;
+        }
+        #preview {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin: 20px auto;
+            position: relative;
+        }
+        #previewImage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MeasureCamp Dubai 2024 Attendee Card Generator</h1>
+        <p class="description">This tool allows you to create a personalized attendee card for MeasureCamp Dubai 2024. Show your support by sharing your card on social media (e.g., LinkedIn) and let others know you'll be attending! Follow the steps below to generate your card and download it for use.</p>
+        
+        <div class="step">
+            <label for="name">Step 1: Enter your name</label>
+            <input type="text" id="name" placeholder="Your Name">
+            <p class="note">Note: If you have a very long name, consider using just your first name or initials.</p>
+        </div>
+        
+        <div class="step">
+            <label for="profilePic">Step 2: Upload your profile picture</label>
+            <input type="file" id="profilePic" accept="image/*">
+            <div id="previewContainer">
+                <div id="preview">
+                    <img id="previewImage" src="" alt="Preview">
+                </div>
+            </div>
+            <div id="imageControls">
+                <label for="zoom">Zoom:</label>
+                <input type="range" id="zoom" min="1" max="2" step="0.1" value="1">
+                <label for="offsetX">Horizontal Position:</label>
+                <input type="range" id="offsetX" min="-100" max="100" value="0">
+                <label for="offsetY">Vertical Position:</label>
+                <input type="range" id="offsetY" min="-100" max="100" value="0">
+            </div>
+        </div>
+        
+        <div class="step">
+            <button id="download" disabled>Step 3: Download Your Card</button>
+        </div>
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script>
+        const nameInput = document.getElementById('name');
+        const profilePicInput = document.getElementById('profilePic');
+        const downloadBtn = document.getElementById('download');
+        const imageControls = document.getElementById('imageControls');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const zoomInput = document.getElementById('zoom');
+        const offsetXInput = document.getElementById('offsetX');
+        const offsetYInput = document.getElementById('offsetY');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+    
+        let profileImage = new Image();
+        profileImage.src = 'default-profile.png';
+    
+        nameInput.addEventListener('input', updateDownloadButton);
+        profilePicInput.addEventListener('change', handleProfilePicUpload);
+        downloadBtn.addEventListener('click', downloadCard);
+        zoomInput.addEventListener('input', updatePreview);
+        offsetXInput.addEventListener('input', updatePreview);
+        offsetYInput.addEventListener('input', updatePreview);
+    
+        function handleProfilePicUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    profileImage = new Image();
+                    profileImage.onload = function() {
+                        previewContainer.style.display = 'block';
+                        imageControls.style.display = 'block';
+                        updatePreview();
+                        updateDownloadButton();
+                    }
+                    profileImage.src = event.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+    
+        function updatePreview() {
+            const previewSize = 200;
+            const zoom = parseFloat(zoomInput.value);
+            const offsetX = parseInt(offsetXInput.value);
+            const offsetY = parseInt(offsetYInput.value);
+            
+            const aspectRatio = profileImage.width / profileImage.height;
+            let width, height;
+            
+            if (aspectRatio > 1) {
+                height = previewSize;
+                width = height * aspectRatio;
+            } else {
+                width = previewSize;
+                height = width / aspectRatio;
+            }
+            
+            const scaledWidth = width * zoom;
+            const scaledHeight = height * zoom;
+            
+            previewImage.style.width = `${scaledWidth}px`;
+            previewImage.style.height = `${scaledHeight}px`;
+            previewImage.style.transform = `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`;
+            previewImage.src = profileImage.src;
+        }
+    
+        function updateDownloadButton() {
+            const nameValid = nameInput.value.trim().length > 0;
+            const imageUploaded = profilePicInput.files.length > 0;
+            downloadBtn.disabled = !(nameValid && imageUploaded);
+        }
+    
+        function downloadCard() {
+            // Configurable variables
+            const profilePicSize = 500;
+            const profilePicX = 866;  // Center X of profile pic
+            const profilePicY = 417;  // Center Y of profile pic
+            const nameX = 894;        // X position of the name text (center point)
+            const nameY = 800;        // Y position of the name text
+
+            const maxWidth = 400;     // Maximum width for the name text
+            const lineHeight = 70;    // Space between lines
+
+            const nameColor = '#ffffff' //Adjust font color
+            const nameStyle = 'bold 60px Helvetica' //Adjust font style
+
+            canvas.width = 1200;
+            canvas.height = 1200;
+
+            const background = new Image();
+            background.src = 'background.png';
+            background.onload = function() {
+                ctx.drawImage(background, 0, 0, 1200, 1200);
+
+                // Profile picture
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(profilePicX, profilePicY, profilePicSize / 2, 0, Math.PI * 2, true);
+                ctx.closePath();
+                ctx.clip();
+
+                const zoom = parseFloat(zoomInput.value);
+                const offsetX = parseInt(offsetXInput.value) * (profilePicSize / 200);
+                const offsetY = parseInt(offsetYInput.value) * (profilePicSize / 200);
+
+                const aspectRatio = profileImage.width / profileImage.height;
+                let width, height;
+
+                if (aspectRatio > 1) {
+                    height = profilePicSize * zoom;
+                    width = height * aspectRatio;
+                } else {
+                    width = profilePicSize * zoom;
+                    height = width / aspectRatio;
+                }
+
+                const dx = profilePicX - (width / 2) + offsetX;
+                const dy = profilePicY - (height / 2) + offsetY;
+
+                ctx.drawImage(profileImage, 0, 0, profileImage.width, profileImage.height, dx, dy, width, height);
+                ctx.restore();
+
+                // Add border to the profile picture
+                ctx.strokeStyle = '#b74549';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.arc(profilePicX, profilePicY, profilePicSize / 2, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Name
+                ctx.fillStyle = nameColor;
+                ctx.font = nameStyle;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                wrapText(ctx, nameInput.value, nameX, nameY, maxWidth, lineHeight);
+
+                // Download the card
+                const link = document.createElement('a');
+                link.download = 'measurecamp-card.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            }
+        }
+
+        function wrapText(context, text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' ');
+            let line = '';
+            let lines = [];
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = context.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // If there are more than 2 lines, combine the rest into the second line
+            if (lines.length > 2) {
+                lines = [
+                    lines[0],
+                    lines.slice(1).join(' ')
+                ];
+            }
+
+            // Center the text block
+            const totalHeight = lineHeight * lines.length;
+            let currentY = y - (totalHeight / 2) + (lineHeight / 2);
+
+            for (let i = 0; i < lines.length; i++) {
+                context.fillText(lines[i], x, currentY);
+                currentY += lineHeight;
+            }
+        }
+    </script>
+</body>
+</html>
